@@ -7,6 +7,11 @@ const exec = util.promisify(require('child_process').exec)
 
 const src = fs.readFileSync('remote.js') 
 
+let cache = [[[1,1], [1, 0], [2, 0]], [[1, 0], [1, 1], [2, 1]]]
+let handler = (num, k) => {
+
+}
+
 let main = async () => {
     let {stdout} = await exec('ps aux | grep fib | head -n 1')
     let pid = stdout.split(' ').filter(e => e != '')[1]
