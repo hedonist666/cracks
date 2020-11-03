@@ -8,29 +8,6 @@ send(base.add(0x670))
 const fib = new NativeFunction(base.add(0x670), 'int', ['int', 'pointer'])
 
 
-var r8 = undefined
-var rbx = undefined
-Interceptor.attach(ptr("0x00400524"), {
-    onEnter(args) {
-        r8 = this.context.r8
-        rbx = this.context.rbx
-        send(this.context)
-    }
-})
-
-Interceptor.attach(ptr("0x00400531"), {
-    onEnter(args) {
-        if (r8) this.context.r8 = r8
-        if (rbx) this.context.rbx = rbx
-    }
-})
-
-Interceptor.attach(ptr("0x00400549"), {
-    onEnter(args) {
-        send('END OF LOOP')
-    }
-})
-
 /*
 var mem = Memory.alloc(4)
 mem.writeInt(0)
@@ -147,7 +124,26 @@ function cb(num, ptr, rec = false) {
 
 var newfib = new NativeCallback(cb, 'int', ['int', 'pointer'])
 
+/*
+var mem = Memory.alloc(4)
+mem.writeInt(0)
+send("TEST:")
+send(cb(33, mem))
+send(mem.readInt())
+mem.writeInt(0)
+send(fib(33, mem))
+send(mem.readInt())
+*/
+
+/*
 Interceptor.replace(fib, newfib)
 Interceptor.flush()
-
-
+send(Instruction.parse(ptr("0x40052c")))
+send(Instruction.parse(ptr("0x400670")))
+var instr = Instruction.parse(ptr("0x400670"))
+var addr = ptr(instr.opStr)
+instr = Instruction.parse(addr)
+for (var i = 0; i < 50; ++i) {
+    send(instr.mnemonic + ' ' + instr.opStr)
+    instr = Instruction.parse(instr.next)
+}
