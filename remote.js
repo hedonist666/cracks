@@ -81,33 +81,28 @@ Interceptor.attach(fib, {
 })
 */
 
-function cb(num, ptr) {
-    send(JSON.stringify({
-        type: 'call',
-        args: [parseInt(num), ptr.readInt()]
-    }))
-    send(cache)
+function cb(num, ptr, rec = false) {
+    if (!rec) {
+        send(JSON.stringify({
+            type: 'call',
+            args: [parseInt(num), ptr.readInt()]
+        }))
+    }
     var k = ptr.readInt();
     num = parseInt(num)
     if (cache[k][num]) {
-        send('from cache')
-        send(cache[k][num])
         ptr.writeInt(cache[k][num][1])
+        if (!rec) {
+            send(JSON.stringify({
+                type: 'ret',
+                args: cache[k][num]
+            }))
+        }
         return cache[k][num][0];
     }
-    if (num == 0) {
-        ptr.writeInt(ptr.readInt() ^ 1)
-        return 1
-    }
-    if (num == 1) {
-        send('RECURSION')
-        var r4 = cb(0, ptr);
-        var r3 = r4 - (((r4 & 0xffffffff) >> 1) & 0x55555555);
-    }
     else {
-        send('RECURSION')
-        var r1 = cb(num - 1, ptr)
-        var r2 = cb(num - 2, ptr)
+        var r1 = cb(num - 1, ptr, true)
+        var r2 = cb(num - 2, ptr, true)
         var r3 = r1 + r2
         var r4 = r3
         r3 = r3 - (r3 >> 1 & 0x55555555);
@@ -118,6 +113,12 @@ function cb(num, ptr) {
     ptr.writeInt(ptr.readInt() ^ (r3 >> 0x10) + r3 & 1)
     cache[k][num] = []
     cache[k][num].push(r4, ptr.readInt())
+    if (!rec) {
+        send(JSON.stringify({
+            type: 'ret',
+            args: cache[k][num]
+        }))
+    }
     return r4
 }
 
@@ -134,4 +135,15 @@ send(fib(33, mem))
 send(mem.readInt())
 */
 
+/*
 Interceptor.replace(fib, newfib)
+Interceptor.flush()
+send(Instruction.parse(ptr("0x40052c")))
+send(Instruction.parse(ptr("0x400670")))
+var instr = Instruction.parse(ptr("0x400670"))
+var addr = ptr(instr.opStr)
+instr = Instruction.parse(addr)
+for (var i = 0; i < 50; ++i) {
+    send(instr.mnemonic + ' ' + instr.opStr)
+    instr = Instruction.parse(instr.next)
+}
