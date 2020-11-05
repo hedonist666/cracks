@@ -1,153 +1,114 @@
-var main = Process.enumerateModules()[0]
-var base = main.base
+var out = Process.enumerateModules()[0]
+var base = out.base
 send('BASE: ' + base)
-var syms = main.enumerateExports()
+var syms = out.enumerateExports()
 send('EXPORTS: ')
 send(syms)
 send(base.add(0x670))
 const fib = new NativeFunction(base.add(0x670), 'int', ['int', 'pointer'])
 
+var str = Memory.dup(ptr("0x004007e1"), 32)
+send(str.toString(), str.readByteArray(32))
 
-var r8 = undefined
-var rbx = undefined
+Interceptor.attach(ptr("0x004004e9"), {
+    onEnter(args) {
+        this.context.rbp = str
+    }
+})
+
+
+//var rbx, r8, r12, r9, rsp, rbp
+var context
 Interceptor.attach(ptr("0x00400524"), {
     onEnter(args) {
-        r8 = this.context.r8
-        rbx = this.context.rbx
         send(this.context)
+        rbx = this.context.rbx
+        r8 = this.context.r8
+        r12 = this.context.r12
+        r9 = this.context.r9
+        rsp = this.context.rsp
+        rbp = this.context.rbp
+        r11 = this.context.r11
     }
 })
 
 Interceptor.attach(ptr("0x00400531"), {
     onEnter(args) {
-        if (r8) this.context.r8 = r8
         if (rbx) this.context.rbx = rbx
+        if (r8) this.context.r8 = r8
+        if (r12) this.context.r12 = r12
+        if (r9) this.context.r9 = r9
+        if (rsp) this.context.rsp = rsp
+        if (rbp) this.context.rbp = rbp
+        if (r11) this.context.r11 = r11
+        send(this.context)
     }
 })
 
-Interceptor.attach(ptr("0x00400549"), {
-    onEnter(args) {
-        send('END OF LOOP')
+Interceptor.attach(ptr("0x00400538"), {
+    onEnter() {
+        send(this.context.rdi + ' ' + this.context.r8)
     }
 })
 
-/*
-var mem = Memory.alloc(4)
-mem.writeInt(0)
-send(fib(33, mem))
-send(mem.readInt())
-/*
-[
-[
-[ 1, 1  ],  [ 1, 0  ],
-[ 2, 0  ],  [ 3, 0  ],
-[ 5, 0  ],  [ 8, 1  ],
-[ 13, 0  ], [ 21, 0  ],
-[ 34, 0  ], [ 55, 1  ],
-[ 89, 1  ], [ 144, 0  ]
-],
-[
-[ 1, 0  ],  [ 1, 1  ],
-[ 2, 1  ],  [ 3, 1  ],
-[ 5, 1  ],  [ 8, 0  ],
-[ 13, 1  ], [ 21, 1  ],
-[ 34, 1  ], [ 55, 0  ],
-[ 89, 0  ], [ 144, 1  ]
-]
-]
-]
-*   ]
-* ]
- */
-var cache = [[[1,1], [1, 0], [2, 0]], [[1, 0], [1, 1], [2, 1]]]
-
-/*
-Interceptor.attach(fib, {
-    onEnter(args) {
-        send(JSON.stringify({
-            type: 'call',
-            args: [args[0], args[1].readInt()]
-        }))
-        this.ptr = args[1]
-    },
-    onLeave(ret) {
-        send(JSON.stringify({
-            type: 'ret',
-            args: [ret, this.ptr.readInt()]
-        }))
+//var fibuf = Memory.alloc(200)
+//var fibuf = ptr("0x004007b0")
+var fibuf = ptr("0x00400590")
+Memory.protect(fibuf, 200, 'rwx')
+Memory.copy(fibuf, fib, 200)
+send(ptr(fibuf.toInt32()))
+var instr = Instruction.parse(fibuf)
+for (let i = 0; i < 50; ++i) {
+    if (instr.mnemonic === 'call') {
+        var wrt = new X86Writer(instr.address)
+        wrt.putCallAddress(fib)
+        wrt.flush()
+        instr = Instruction.parse(instr.address)
+        send('PATCHING:')
+        send(instr.mnemonic + ' ' + instr.opStr)
     }
-})
-*/
+    instr = Instruction.parse(instr.next)
+}
 
-/*
-Interceptor.attach(fib, {
+instr = Instruction.parse(fibuf)
+for (let i = 0; i < 50; ++i) {
+    send(instr.mnemonic + ' ' + instr.opStr)
+    instr = Instruction.parse(instr.next)
+}
+
+var newfib = new NativeFunction(fibuf, 'int', ['int', 'pointer'])
+var buf = Memory.alloc(4)
+buf.writeInt(0)
+send("=========TEST===========")
+send(newfib(33, buf))
+send("========================")
+
+var cache = [[], []]
+
+Interceptor.attach(newfib, {
     onEnter(args) {
         this.arg1 = parseInt(args[0])
         this.arg2 = args[1].readInt()
-        this.ptr = args[1]
-        send(cache)
+        this.ptr  = args[1]
     },
     onLeave(ret) {
-        cache[this.arg2][this.arg1] = []
-        cache[this.arg2][this.arg1].push(parseInt(ret), this.ptr.readInt())
-        send('from native fib function: ')
-        send(JSON.stringify({
-            data: [
-                this.arg1,
-                this.arg2,
-                ret,
-                this.ptr.readInt()
-            ]
-        }))
-        send(ret)
+        cache[this.arg2][this.arg1] = [parseInt(ret), this.ptr.readInt()]
     }
 })
-*/
 
-function cb(num, ptr, rec = false) {
-    if (!rec) {
-        send(JSON.stringify({
-            type: 'call',
-            args: [parseInt(num), ptr.readInt()]
-        }))
-    }
-    var k = ptr.readInt();
-    num = parseInt(num)
+function cb(num, ptr) {
+    var k = ptr.readInt()
     if (cache[k][num]) {
         ptr.writeInt(cache[k][num][1])
-        if (!rec) {
-            send(JSON.stringify({
-                type: 'ret',
-                args: cache[k][num]
-            }))
-        }
-        return cache[k][num][0];
+        return cache[k][num][0]
     }
     else {
-        var r1 = cb(num - 1, ptr, true)
-        var r2 = cb(num - 2, ptr, true)
-        var r3 = r1 + r2
-        var r4 = r3
-        r3 = r3 - (r3 >> 1 & 0x55555555);
+        return newfib(num, ptr)
     }
-    r3 = (r3 >> 2 & 0x33333333) + (r3 & 0x33333333);
-    r3 = (r3 >> 4) + r3;
-    r3 = (r3 >> 8 & 0xf0f0f) + (r3 & 0xf0f0f0f);
-    ptr.writeInt(ptr.readInt() ^ (r3 >> 0x10) + r3 & 1)
-    cache[k][num] = []
-    cache[k][num].push(r4, ptr.readInt())
-    if (!rec) {
-        send(JSON.stringify({
-            type: 'ret',
-            args: cache[k][num]
-        }))
-    }
-    return r4
 }
 
-var newfib = new NativeCallback(cb, 'int', ['int', 'pointer'])
+var nativeCB = new NativeCallback(cb, 'int', ['int', 'pointer'])
+Interceptor.replace(fib, nativeCB)
 
-Interceptor.replace(fib, newfib)
-Interceptor.flush()
-
-
+var main = new NativeFunction(ptr("0x004004e0"), 'int', [])
+main()
