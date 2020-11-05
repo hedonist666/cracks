@@ -17,13 +17,14 @@ Interceptor.attach(ptr("0x004004e9"), {
 })
 
 
-//var rbx, r8, r12, r9, rsp, rbp
-var context
-Interceptor.attach(ptr("0x00400524"), {
+
+/*
+var r11, rbx, r8, r12, r9, rsp, rbp
+Interceptor.attach(ptr("0x0040051b"), {
     onEnter(args) {
-        send(this.context)
         rbx = this.context.rbx
         r8 = this.context.r8
+        send('r8 was: ' + r8)
         r12 = this.context.r12
         r9 = this.context.r9
         rsp = this.context.rsp
@@ -32,22 +33,44 @@ Interceptor.attach(ptr("0x00400524"), {
     }
 })
 
+
 Interceptor.attach(ptr("0x00400531"), {
     onEnter(args) {
-        if (rbx) this.context.rbx = rbx
-        if (r8) this.context.r8 = r8
-        if (r12) this.context.r12 = r12
-        if (r9) this.context.r9 = r9
-        if (rsp) this.context.rsp = rsp
-        if (rbp) this.context.rbp = rbp
-        if (r11) this.context.r11 = r11
-        send(this.context)
+        this.context.rbx = rbx
+        this.context.r8 = r8
+        send('r8 is: ' + r8)
+        this.context.r12 = r12
+        this.context.r9 = r9
+        this.context.rsp = rsp
+        this.context.rbp = rbp
+        this.context.r11 = r11
     }
 })
+*/
 
+
+var vals = []
+var syms = 1
 Interceptor.attach(ptr("0x00400538"), {
     onEnter() {
-        send(this.context.rdi + ' ' + this.context.r8)
+        /*send(this.context.rdi + ' ' + this.context.r8)
+        var i = parseInt(this.context.r8)
+        var val = parseInt(this.context.rdi)
+        vals.push(val)
+        if (i == 7) {
+            send(vals)
+            vals = []
+        }
+        */
+        var val = parseInt(this.context.rdi)
+        vals.push(val)
+        this.context.r8 = vals.length - 1
+        //this.context.rbp = str.add(syms - 1)
+        if (vals.length == 8) {
+            send(vals)
+            vals = []
+            //syms += 1
+        }
     }
 })
 
@@ -70,6 +93,17 @@ for (let i = 0; i < 50; ++i) {
     instr = Instruction.parse(instr.next)
 }
 
+instr = Instruction.parse(fibuf.add(162))
+send("SUKAAA")
+send(instr.mnemonic + ' ' + instr.opStr)
+var wrt = new X86Writer(instr.address)
+wrt.putCallAddress(fib)
+wrt.flush()
+instr = Instruction.parse(instr.address)
+send('PATCHING:')
+send(instr.mnemonic + ' ' + instr.opStr)
+
+
 instr = Instruction.parse(fibuf)
 for (let i = 0; i < 50; ++i) {
     send(instr.mnemonic + ' ' + instr.opStr)
@@ -81,6 +115,7 @@ var buf = Memory.alloc(4)
 buf.writeInt(0)
 send("=========TEST===========")
 send(newfib(33, buf))
+send(buf.readInt())
 send("========================")
 
 var cache = [[], []]
@@ -96,6 +131,7 @@ Interceptor.attach(newfib, {
     }
 })
 
+//var max = 0
 function cb(num, ptr) {
     var k = ptr.readInt()
     if (cache[k][num]) {
@@ -109,6 +145,23 @@ function cb(num, ptr) {
 
 var nativeCB = new NativeCallback(cb, 'int', ['int', 'pointer'])
 Interceptor.replace(fib, nativeCB)
+
+/*
+var instr = Instruction.parse(ptr("0x004004e0"))
+for (var i = 0; i < 103; ++i) {
+    send(instr.address + ': ' + instr.mnemonic + ' ' + instr.opStr)
+    instr = Instruction.parse(instr.next)
+    if (instr.mnemonic == 'jmp') {
+        send('ANALYZING JUMP')
+        var addr = instr.opStr
+        var instr1 = Instruction.parse(ptr(addr))
+        for (var j = 0; j < 3; ++j) {
+            send(instr1.address + ': ' + instr1.mnemonic + ' ' + instr1.opStr)
+            instr1 = Instruction.parse(instr1.next)
+        }
+    }
+}
+*/
 
 var main = new NativeFunction(ptr("0x004004e0"), 'int', [])
 main()

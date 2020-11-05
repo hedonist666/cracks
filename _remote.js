@@ -7,10 +7,15 @@ send(syms)
 send(base.add(0x670))
 const fib = new NativeFunction(base.add(0x670), 'int', ['int', 'pointer'])
 
-var rec = false
+var vals = []
 
-Interceptor.attach(ptr("0x00400535"), {
-    onEnter(args) {
-        send(this.context.rdi + ' ' + this.context.r8)
+Interceptor.attach(ptr("0x00400538"), {
+    onEnter() {
+        var val = parseInt(this.context.rdi)
+        vals.push(val)
+        if (vals.length == 8) {
+            send(vals)
+            vals = []
+        }
     }
 })
