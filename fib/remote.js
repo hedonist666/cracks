@@ -18,64 +18,22 @@ Interceptor.attach(ptr("0x004004e9"), {
 
 
 
+
 /*
-var r11, rbx, r8, r12, r9, rsp, rbp
-Interceptor.attach(ptr("0x0040051b"), {
-    onEnter(args) {
-        rbx = this.context.rbx
-        r8 = this.context.r8
-        send('r8 was: ' + r8)
-        r12 = this.context.r12
-        r9 = this.context.r9
-        rsp = this.context.rsp
-        rbp = this.context.rbp
-        r11 = this.context.r11
-    }
-})
-
-
-Interceptor.attach(ptr("0x00400531"), {
-    onEnter(args) {
-        this.context.rbx = rbx
-        this.context.r8 = r8
-        send('r8 is: ' + r8)
-        this.context.r12 = r12
-        this.context.r9 = r9
-        this.context.rsp = rsp
-        this.context.rbp = rbp
-        this.context.r11 = r11
+var vals = []
+Interceptor.attach(ptr("0x00400538"), {
+    onEnter() {
+        var val = parseInt(this.context.rdi)
+        vals.push(val)
+        this.context.r8 = vals.length - 1
+        if (vals.length == 8) {
+            send(vals)
+            vals = []
+        }
     }
 })
 */
 
-
-var vals = []
-var syms = 1
-Interceptor.attach(ptr("0x00400538"), {
-    onEnter() {
-        /*send(this.context.rdi + ' ' + this.context.r8)
-        var i = parseInt(this.context.r8)
-        var val = parseInt(this.context.rdi)
-        vals.push(val)
-        if (i == 7) {
-            send(vals)
-            vals = []
-        }
-        */
-        var val = parseInt(this.context.rdi)
-        vals.push(val)
-        this.context.r8 = vals.length - 1
-        //this.context.rbp = str.add(syms - 1)
-        if (vals.length == 8) {
-            send(vals)
-            vals = []
-            //syms += 1
-        }
-    }
-})
-
-//var fibuf = Memory.alloc(200)
-//var fibuf = ptr("0x004007b0")
 var fibuf = ptr("0x00400590")
 Memory.protect(fibuf, 200, 'rwx')
 Memory.copy(fibuf, fib, 200)
@@ -131,7 +89,6 @@ Interceptor.attach(newfib, {
     }
 })
 
-//var max = 0
 function cb(num, ptr) {
     var k = ptr.readInt()
     if (cache[k][num]) {
@@ -145,22 +102,42 @@ function cb(num, ptr) {
 
 var nativeCB = new NativeCallback(cb, 'int', ['int', 'pointer'])
 Interceptor.replace(fib, nativeCB)
+Interceptor.flush()
+Interceptor.attach(fib, {
+    onEnter(args) {
+        this.rsp = this.context.rsp
+        this.r8 = this.context.r8
+        this.rbp = this.context.rbp
+        this.r12 = this.context.r12
+        this.r9 = this.context.r9
+        this.rbx = this.context.rbx
+        this.r11 = this.context.r11
+        this.rcx = this.context.rcx
+    },
+    onLeave(ret) {
+        this.context.r8 = this.r8
+        this.context.rbp = this.rbp
+        this.context.r12 = this.r12
+        this.context.r9 = this.r9
+        this.context.rsp = this.rsp
+        this.context.rbx = this.rbx
+        this.context.r11 = this.r11
+        this.context.rcx = this.rcx
+    }
+})
 
 /*
-var instr = Instruction.parse(ptr("0x004004e0"))
-for (var i = 0; i < 103; ++i) {
-    send(instr.address + ': ' + instr.mnemonic + ' ' + instr.opStr)
-    instr = Instruction.parse(instr.next)
-    if (instr.mnemonic == 'jmp') {
-        send('ANALYZING JUMP')
-        var addr = instr.opStr
-        var instr1 = Instruction.parse(ptr(addr))
-        for (var j = 0; j < 3; ++j) {
-            send(instr1.address + ': ' + instr1.mnemonic + ' ' + instr1.opStr)
-            instr1 = Instruction.parse(instr1.next)
-        }
+Interceptor.attach(ptr("0x00400538"), {
+    onEnter(args) {
+        send('-_-_-_-_-_-_-_-_-_-_-_-_-_-_-')
     }
-}
+})
+
+Interceptor.attach(ptr("0x00400538"), {
+    onEnter(args) {
+        send(this.context.rdi + ' ' + this.context.r8) 
+    }
+})
 */
 
 var main = new NativeFunction(ptr("0x004004e0"), 'int', [])
